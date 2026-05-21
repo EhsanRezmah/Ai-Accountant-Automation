@@ -1,0 +1,739 @@
+{
+  "name": "Finanz_Scanner",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -896,
+        -176
+      ],
+      "id": "c3b5fb9e-80e4-4682-ac6f-755aef6b84e4",
+      "name": "Telegram Trigger",
+      "webhookId": "bd9c1cb9-ae02-44df-9e04-6cce8e47ce5b",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.photo ? $json.message.photo.reverse()[0].file_id : $json.message.document.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        -320
+      ],
+      "id": "e6fd3e49-de46-4412-abae-92a8ec98519a",
+      "name": "Get a file",
+      "webhookId": "7f0d01b2-6020-4c0f-8f2a-cdb472f45233",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json[0];\nconst fields = data.fields;\nconst getValue = (fieldName) => fields?.[fieldName]?.value || '';\n\nconst getStoreName = () => {\n  const fieldVal = getValue('storeName');\n  if (fieldVal.match(/[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}/i)) {\n    return (data.ocr || '').split('\\n')[0].trim();\n  }\n  return fieldVal;\n};\n\nconst getTotalAmount = () => {\n  const val = getValue('totalAmount');\n  const clean = val.replace(/EUR|[\\n\\r]/g, '').trim().replace(',', '.');\n  return parseFloat(clean) || 0;\n};\n\nconst formatDate = (dateStr) => {\n  if (!dateStr) return '';\n  if (dateStr.includes('.')) {\n    const parts = dateStr.split('.');\n    if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;\n  }\n  return dateStr;\n};\n\nconst getInvoiceTime = () => {\n  const fieldVal = getValue('invoiceTime');\n  const isValid = fields?.invoiceTime?.isValid !== false;\n  \n  if (isValid && fieldVal && fieldVal.match(/^\\d{2}:\\d{2}/)) {\n    return fieldVal.replace(/Uhr/gi, '').trim();\n  }\n  \n  const ocrText = data.ocr || data.features?.dom?.text || '';\n  const matches = [...ocrText.matchAll(/\\b([01]?[0-9]|2[0-3]):([0-5][0-9])(?::[0-5][0-9])?\\b/g)];\n  \n  if (matches.length > 0) {\n    const fullTime = matches[0][0];\n    const timeParts = fullTime.split(':');\n    return `${timeParts[0]}:${timeParts[1]}`; // فقط HH:MM\n  }\n  \n  return '';\n};\n\nreturn [{\n  json: {\n    storeName:     getStoreName(),\n    invoiceDate:   formatDate(getValue('invoiceDate')),\n    invoiceTime:   getInvoiceTime(),\n    totalAmount:   getTotalAmount(),\n    currency:      'EUR',\n    invoiceNumber: getValue('invoiceNumber')\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        -320
+      ],
+      "id": "794f796f-e8a6-422f-963b-27e2669f4539",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "81acf825-d36b-4a51-91a9-5bc378c8c7ed",
+              "name": "name",
+              "value": "={{ $json.name || \"Receipt-\" +\"  \"+ new Date().toISOString().slice(0,10) }}",
+              "type": "string"
+            },
+            {
+              "id": "f41d69ff-b2d1-473d-b242-ed042caa3d74",
+              "name": "Picture Information",
+              "value": "={{ \n\"🛒 Store: \" + ($('Supabase Create a row').item.json.store_name || \"Unknown\") + \n\"\\n📅 Date: \" + ($('Supabase Create a row').item.json.invoice_date || \"Unknown\") + \n\"\\n🕒 Time: \" + ($('Supabase Create a row').item.json.invoice_time || \"\") + \n\"\\n💰 Total: \" + ($('Supabase Create a row').item.json.total_amount || \"0\") + \" EUR\" + \n\"\\n📝 Invoice No: \" + ($('Supabase Create a row').item.json.invoice_number || \"N/A\")\n}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1136,
+        -416
+      ],
+      "id": "0b8afa1b-f0bc-4f60-bad4-f143cfc1c430",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create the formal confirmation message for this receipt data. Use real line breaks:\n\n{{ $json }}",
+        "options": {
+          "systemMessage": "=You are a professional receipt processing system.\nGenerate a clean, modern, and friendly confirmation message in English using emojis for visual structure.\n\nuse this for your Information :{{ $json['Picture Information'] }}\n\nRules:\n- Use actual line breaks (real newlines) between lines. Do NOT use \\n characters.\n- Do NOT escape anything.\n- Make it well-formatted, highly readable, and professional.\n- Respond with ONLY the message, nothing else.\n\nAlways follow this exact structure:\n\n✅ **Receipt Successfully Registered!**\n---\nConveniently saved to your financial database. 📥\n\n📝 **Invoice Details:**\n🏪 Store: [storeName]\n📅 Date: [invoiceDate]\n🕒 Time: [invoiceTime]\n🆔 Invoice No: [invoiceNumber]\n💶 Total Amount: `[totalAmount] EUR`\n\n---\n✨ Your Google Sheet has been updated in real-time. Everything is secure! 🚀"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1360,
+        -416
+      ],
+      "id": "837c2158-4726-4bae-8fbe-4500a8c56038",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3.1-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        -192
+      ],
+      "id": "a972d909-556a-4314-9882-a86dd663d940",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "VSATk6THdiy0LB3Q",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=\"sessionKey\": \"={{ $json.message?.chat?.id || 'default' }}\"\n\n\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1472,
+        -192
+      ],
+      "id": "3de3eaef-f2d7-474a-a279-3c12897b5cba",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "documentInputSource": "binary",
+        "documentFlow": {
+          "__rl": true,
+          "value": "690327fa-2e10-4026-96d6-dc193d82d7f4",
+          "mode": "list",
+          "cachedResultName": "Receipt Flow"
+        }
+      },
+      "type": "@base64ai/n8n-nodes-base64ai.base64ai",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        -320
+      ],
+      "id": "88062e86-456d-4a0f-971a-a61a665a2df2",
+      "name": "Recognize a document",
+      "credentials": {
+        "base64aiApi": {
+          "id": "jCSE9Qh2n4WCPusu",
+          "name": "Base64.ai account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        208
+      ],
+      "id": "633a581a-5b6f-4068-a4c2-3f628a72b7cc",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "VSATk6THdiy0LB3Q",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User {{ $('Telegram Trigger').item.json.message.chat.first_name }} says: {{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {
+          "systemMessage": "=Role: You are my \"AI Accountant\", a Professional Financial Analyst for the FinanzchatBot.\n\nContext:\n- Current Date: {{ $now }}\n- Database: Supabase (Table: receipts | Columns: store_name, invoice_number, invoice_date, total_amount, invoice_time, currency, telegram_id)\n\nInstructions:\n1. **Balance & Monthly Report:** When the user asks for \"Balance\":\n   - ALWAYS use the Supabase tool to fetch the receipts (The tool already filters by the user's telegram_id).\n   - **Step 1:** Identify the Current Month and Year (based on the current date provided in Context).\n   - **Step 2:** Identify the Previous Month and Year.\n   - **Step 3:** Calculate the Total Amount (`total_amount`) for both months separately from the returned data.\n   - **Output Format:**\n     \n     📊 **Monthly Report**\n     (Write the name of current Month and Year here, e.g., May 2026)\n     ---\n     💰 Total Spent: `XX.XX EUR`\n     📉 Last Month: `YY.YY EUR`\n     \n     📝 **Recent Transactions:**\n\n     📅 Date | 🛒 Store | 💶 Amount\n     (List the last 5 items of the current month from Supabase using this emoji-based format)\n     \n     ---\n     💡 Tip: Briefly mention if spending is higher or lower than last month.\n\n2. **Info Request:** If \"Info\" is requested, respond: \"\"Welcome to the Deep Dive of AI Accountant! 🏦💡\nYou're using a smart automation system designed to make manual bookkeeping a thing of the past. Here is exactly what happens under the hood:\n🔍 Smart OCR: When you send a photo, I don't just 'see' it. I extract the Store Name, Date, and the exact Total Amount using advanced AI.\n📅 Auto-Archiving: Every receipt is instantly logged into your private Supabase database with a timestamp, creating a permanent digital backup.\n📈 Instant Analytics: By tapping 'Balance', I perform a real-time calculation of your monthly spending and show you your top recent expenses in a clear table.\n💡 Tip: For the best results, make sure the receipt is flat and the total amount is clearly visible in the photo.\nReady to scan your first receipt? Just send the photo! 📸🚀\"\"\n\n3. **Receipt Guidance:** If the user wants to register an invoice but only sends text, remind them: \"Please send a photo of the receipt to proceed with registration.\"\n\n4. **Invalid Input (Strict):** For any other casual chat or unknown commands, respond ONLY with:\n\n\"Hello! I am an AI Accountant and your smart expense assistant. \nForget about manual typing; here is how we work together:\n\n📸 Got a Receipt? Just snap a photo and send it to me. I'll extract the data and keep your database updated in seconds.\n\n💰 Check Spending: Tap the 'Balance' button below to see a neat summary of your expenses for this month.\n\nℹ️ Tap 'Info' if you want to know more about my features.\n\nNeed Help? You can always tap the buttons below or just send me a photo to start tracking.\nHow can I help you organize your finances today? 🚀\"\n\n5. **User Message Handling:**\n- The user message is: {{ $('Telegram Trigger').item.json.message.text }}\n- The user's Telegram ID is: {{ $node[\"Telegram Trigger\"].json.message.chat.id }}\n\nAccounting Rules:\n- If no data exists for the current month, report \"0 EUR\" for the month but show the \"All-time Total\" as a reference.\n- Be extremely precise with math. Double-check your sums before responding.\n\nConstraints:\n- Language: English only.\n- Tone: Professional, concise, and technical.\n- No small talk.\n- invoice_date format is YYYY-MM-DD\n- total_amount is a number (float)\n- Always process the rows provided by the Supabase tool\n\n- If user clicks \"Register Receipt\": Ask them to send a photo of the receipt.\n- If user clicks \"Balance\": Use the Supabase tool to provide the monthly report.\n- If user clicks \"Get Chatbot Information\": Explain that you are a financial assistant for tracking expenses."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -176,
+        -32
+      ],
+      "id": "dd84f6d3-9899-4901-b8b1-eb5e08e6b161",
+      "name": "General AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=\"sessionKey\": \"={{ $json.message?.chat?.id || 'default' }}\"\n",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -96,
+        208
+      ],
+      "id": "7f66ece4-eaf0-4258-bbca-94cc3d498f1b",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $node[\"Telegram Trigger\"].json.message.photo ? $node[\"Telegram Trigger\"].json.message.photo.reverse()[0].file_id : $node[\"Telegram Trigger\"].json.message.document.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        464,
+        -320
+      ],
+      "id": "d2960441-3b16-42db-ab9d-e863332bf9eb",
+      "name": "Get a file for Google Drive",
+      "webhookId": "f3786383-06a1-455f-84e7-db3217baeb2e",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "=file{{ $now.format('MMMM-dd-yyyy') }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1n6-mFHd9Nj0RQR477rVHmr2l3tMvmIhe",
+          "mode": "list",
+          "cachedResultName": "Finanz",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1n6-mFHd9Nj0RQR477rVHmr2l3tMvmIhe"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        688,
+        -320
+      ],
+      "id": "086dc4ff-25a4-4fda-8b0b-561a7130f8f9",
+      "name": "Upload file in Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "0G3q1xvaE3RBCTIb",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "receipts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $node[\"Telegram Trigger\"].json.message.chat.id }}"
+            },
+            {
+              "fieldId": "store_name",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.storeName }}"
+            },
+            {
+              "fieldId": "invoice_number",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.invoiceNumber }}"
+            },
+            {
+              "fieldId": "invoice_date",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.invoiceDate }}"
+            },
+            {
+              "fieldId": "total_amount",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.totalAmount }}"
+            },
+            {
+              "fieldId": "invoice_time",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.invoiceTime }}"
+            },
+            {
+              "fieldId": "currency",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.currency }}"
+            },
+            {
+              "fieldId": "image_url",
+              "fieldValue": "={{ $json.webViewLink }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        912,
+        -320
+      ],
+      "id": "2b927270-713e-4084-8ec6-2832545981f1",
+      "name": "Supabase Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "gSFgG2N9Z1uS6FM8",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1712,
+        -416
+      ],
+      "id": "fe31e33d-a07b-4ec4-9ebc-f5d7a1dc951c",
+      "name": "Send a text message - Successfully Recipe Register",
+      "webhookId": "0e13c1ef-a383-46c2-b861-9197528a0cb3",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "⚠️ Duplicate invoice!  This invoice has already been registered in the system.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1136,
+        -224
+      ],
+      "id": "bc50295a-5882-4089-ab33-e14f1f4bd8cf",
+      "name": "Send a text message - Duplicate Validations",
+      "webhookId": "6011a011-6aa0-4c18-bc97-fae1a34a836f",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d05fa69e-ff7f-42a8-9995-42d9b84227c3",
+              "leftValue": "={{ $json.message?.photo?.length > 0 || $json.message?.document ? true : false }}",
+              "rightValue": "={{ $json.message.photo || $json.message.document }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -672,
+        -176
+      ],
+      "id": "73385cf8-abd3-4205-a785-a4b4fb3ac3dc",
+      "name": "If - Image or Text"
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"chat\"][\"id\"] }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        -32
+      ],
+      "id": "f07c1885-3f25-4a3c-ba52-6847bcc1d147",
+      "name": "Send a chat action- typing ...",
+      "webhookId": "acbf59d6-0286-48ea-9f72-aed983a098ae",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Get many rows in S\"Use this tool to fetch all purchase receipts and financial history for the current Telegram user. It returns a list of receipts containing store_name, invoice_date, and total_amount. Use this data when the user asks for their balance, invoice history, or total spendings.\"upabase",
+        "operation": "getAll",
+        "tableId": "receipts",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        32,
+        208
+      ],
+      "id": "3c8ba24c-3792-4652-904b-a26503ffd0a1",
+      "name": "Get many rows in Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "gSFgG2N9Z1uS6FM8",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger\"].json[\"message\"][\"chat\"][\"id\"] }}",
+        "text": "={{ $json.output }}",
+        "replyMarkup": "replyKeyboard",
+        "replyKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Register Receipt",
+                    "additionalFields": {}
+                  },
+                  {
+                    "text": "Balance",
+                    "additionalFields": {}
+                  },
+                  {
+                    "text": "Get Chatbot Information ",
+                    "additionalFields": {}
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {
+          "resize_keyboard": true
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        -32
+      ],
+      "id": "ff4aaa4f-3812-4d5e-b5c1-acbb2df0e902",
+      "name": "Send a text message - Text and balance Response",
+      "webhookId": "a53102df-7ed8-4dfb-a171-317381f5b3c1",
+      "credentials": {
+        "telegramApi": {
+          "id": "JtqaJAOtD0ZlHvlO",
+          "name": "Finanz_neu"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If - Image or Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Recognize a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Get a file for Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message - Successfully Recipe Register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recognize a document": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "General AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "General AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message - Text and balance Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "General AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file for Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Upload file in Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file in Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Supabase Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Create a row": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message - Duplicate Validations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Image or Text": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a chat action- typing ...",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a chat action- typing ...": {
+      "main": [
+        [
+          {
+            "node": "General AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows in Supabase": {
+      "ai_tool": [
+        [
+          {
+            "node": "General AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message - Text and balance Response": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "90956fe4-ff71-4f12-b6ac-4d145184aadb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e611a09b6ad6de5e58696671ac7a9b42aeba25441e30979d335336509d49544f"
+  },
+  "id": "5vAoTJJo8b5D6uT8",
+  "tags": []
+}
