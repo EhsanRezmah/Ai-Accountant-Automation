@@ -1,44 +1,102 @@
-# AI Accountant - Automated Expense Tracking Bot 📸📊
+# AI Finance Assistant 🤖💰
 
-An enterprise-grade financial automation workflow built with **n8n**, **Supabase (PostgreSQL)**, and **Advanced AI Agents** via OpenRouter. This system seamlessly transforms receipt images into structured, relational financial data and provides intelligent, real-time balance analytics directly over Telegram.
+An AI-powered Telegram finance assistant that automatically scans receipts, extracts financial data using OCR, stores invoices securely in the cloud, and generates real-time spending analytics.
 
----
-
-## 🛠️ System Architecture
-
-The automation is engineered into two decoupled, high-performance execution pipelines:
-
-### 1. Data Ingestion & Deduplication Pipeline
-* **Trigger:** Telegram photo or document upload of a physical receipt.
-* **OCR & Feature Extraction:** Multi-stage AI processing extracts operational metadata (`store_name`, `invoice_date`, `total_amount`, `invoice_time`, `currency`).
-* **Storage Engine:** Structured data is logged into **Supabase**.
-* **Idempotency Guard:** Implements a strict 3-option PostgreSQL unique constraint (`telegram_id`, `invoice_date`, `total_amount`) to automatically catch dual-submits, routing failures to a specialized Telegram warning node instead of breaking the workflow.
-
-### 2. Conversational Analytics Engine (AI Agent)
-* Managed via an advanced Conversational AI Agent utilizing OpenRouter models.
-* Equipped with a dynamic **Supabase Tool** restricted via individual `telegram_id` scope to ensure total multi-user data privacy.
-* Executes real-time mathematical aggregation to output monthly summaries, historical budget metrics, and transaction ledgers.
+Built with modern automation architecture using n8n, Supabase, AI Agents, OCR recognition, and Telegram Bot integration.
 
 ---
 
-## 🗄️ Database Schema
+## 🚀 Overview
 
-The project utilizes **Supabase (PostgreSQL)** for transactional integrity. Execute the following schema inside your Supabase SQL Editor to initialize the structural parameters:
+Managing paper receipts manually is slow, messy, and error-prone.  
+This project automates the entire expense tracking workflow through Telegram.
 
-```sql
-CREATE TABLE receipts (
-    id GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    telegram_id TEXT NOT NULL,
-    store_name TEXT,
-    invoice_number TEXT,
-    invoice_date DATE,
-    total_amount FLOAT8,
-    invoice_time TEXT,
-    currency TEXT,
-    image_url TEXT
-);
+Simply send a receipt photo to the bot and the system will:
 
--- Active Multi-Column Deduplication Index
-ALTER TABLE receipts 
-ADD CONSTRAINT unique_user_receipt UNIQUE (telegram_id, invoice_date, total_amount);
+- 📸 Detect and process the receipt
+- 🔍 Extract invoice data using OCR AI
+- ☁️ Backup the receipt image to Google Drive
+- 🗄️ Store structured financial data in Supabase
+- 📊 Generate real-time spending reports
+- 🤖 Respond with AI-generated financial summaries
+
+No manual typing. No spreadsheets.  
+Humanity finally found a way to spend money faster *and* document the damage automatically.
+
+---
+
+# ✨ Features
+
+## 📥 Smart Receipt Registration
+- Upload receipts directly through Telegram
+- Automatic OCR extraction
+- Detects:
+  - Store name
+  - Invoice date
+  - Invoice time
+  - Invoice number
+  - Total amount
+  - Currency
+
+---
+
+## 🤖 AI Financial Assistant
+Users can interact with the bot naturally inside Telegram.
+
+Supported features:
+- Monthly spending reports
+- Expense history
+- Spending comparisons
+- Financial summaries
+- Smart receipt guidance
+
+---
+
+## ☁️ Cloud Receipt Backup
+Every uploaded receipt is automatically:
+- Stored in Google Drive
+- Linked to the database
+- Preserved for future access
+
+Because humans lose paper receipts approximately 11 seconds after leaving the store.
+
+---
+
+## 📊 Real-Time Analytics
+The bot calculates:
+- Current month expenses
+- Previous month comparison
+- Recent transactions
+- Spending trends
+
+All directly from Supabase in real time.
+
+---
+
+## 🔒 Multi-User Support
+Each Telegram user has isolated financial records using:
+- Telegram User ID filtering
+- Secure database separation
+
+---
+
+# 🏗️ Architecture
+
+```text
+Telegram User
+      ↓
+Telegram Bot Trigger
+      ↓
+n8n Workflow Engine
+      ↓
+OCR Recognition (Base64.ai)
+      ↓
+JavaScript Data Processing
+      ↓
+Google Drive Backup
+      ↓
+Supabase Database Storage
+      ↓
+AI Financial Analysis
+      ↓
+Telegram Response
